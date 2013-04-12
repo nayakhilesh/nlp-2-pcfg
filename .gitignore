@@ -9,3 +9,5 @@ parse_dev.key
 parse_test.dat
 parse_train.dat
 parse_train_vert.dat
+parse_train.dat.replaced
+parse_train.counts.out
