@@ -6,6 +6,31 @@
 require 'json'
 require 'optparse'
 
+def write_replaced_file(filename)
+
+  freq_hash = {}
+  File.open(filename, 'r').each_line do |line|
+    #puts line
+    tree = JSON.parse(line)
+    add_freq(tree,freq_hash)
+  end
+  
+  #p freq_hash
+  
+  infrequent_words = freq_hash.reject { |word, freq| freq >= 5 }
+  #p infrequent_words
+  
+  File.open(filename + '.replaced', 'w') do |file|
+    File.open(filename, 'r').each_line do |line|
+      #puts line
+      tree = JSON.parse(line)
+      replaced_tree = create_replaced_tree(tree,infrequent_words)
+      file.write(replaced_tree.to_json)
+      file.write("\n")
+    end
+  end
+
+end
 
 def add_freq(tree,freq_hash)
   if tree.is_a?(String)
@@ -35,6 +60,44 @@ def create_replaced_tree(tree,infrequent_words)
   return replaced_tree
 end
 
+class MaxLikelihoodEstimator
+
+  def initialize(counts_file)
+    @nonterminal_count = {}
+    @unaryrule_count = {}
+    @binaryrule_count = {}
+    File.open(counts_file, 'r').each_line do |line|
+      arr = line.split
+      if arr[1] == 'NONTERMINAL'
+        @nonterminal_count[arr[2].freeze] = arr[0].to_i
+      elsif arr[1] == 'UNARYRULE'
+        @unaryrule_count[[arr[2],arr[3]].freeze] = arr[0].to_i
+      elsif arr[1] == 'BINARYRULE'
+        @binaryrule_count[[arr[2],arr[3],arr[4]].freeze] = arr[0].to_i
+      else 
+        raise 'unknown tag: ' + arr[1]
+      end
+    end
+    
+    #p @nonterminal_count
+    #p @unaryrule_count
+    #p @binaryrule_count 
+  end
+  
+  def estimate(x,y,z=nil)
+    if z == nil
+      if @unaryrule_count.has_key?([x,y])
+        @unaryrule_count[[x,y]]/@nonterminal_count[x].to_f
+      else
+        @unaryrule_count[[x,'_RARE_']]/@nonterminal_count[x].to_f
+      end
+    else
+      @binaryrule_count[[x,y,z]]/@nonterminal_count[x].to_f
+    end
+  end
+
+end
+
 def main
   options = {}
   optparse = OptionParser.new do |opts|
@@ -42,7 +105,7 @@ def main
     opts.banner = 'Usage: pcfg.rb --replacefile FILE --countsfile FILE --inputfile FILE'
     
     options[:replace_file] = nil
-    opts.on('-r', '--replacefile FILE', 'File to replace infrequent words with _RARE_') do |filename|
+    opts.on('-r', '--replacefile FILE', 'File with training data to replace infrequent words with _RARE_') do |filename|
       options[:replace_file] = filename
     end
     
@@ -67,54 +130,16 @@ def main
   #p options
 
   unless options[:replace_file] == nil
-  
-    freq_hash = {}
-    File.open(options[:replace_file], 'r').each_line do |line|
-      #puts line
-      tree = JSON.parse(line)
-      add_freq(tree,freq_hash)
-    end
-    
-    #p freq_hash
-    
-    infrequent_words = freq_hash.reject { |word, freq| freq >= 5 }
-    #p infrequent_words
-    
-    File.open(options[:replace_file] + '.replaced', 'w') do |file|
-      File.open(options[:replace_file], 'r').each_line do |line|
-        #puts line
-        tree = JSON.parse(line)
-        replaced_tree = create_replaced_tree(tree,infrequent_words)
-        file.write(replaced_tree.to_json)
-        file.write("\n")
-      end
-    end
-    
+    write_replaced_file(options[:replace_file])    
   end
 
   unless options[:counts_file] == nil
-  
-    nonterminal_count = {}
-    unaryrule_count = {}
-    binaryrule_count = {}
-    File.open(options[:counts_file], 'r').each_line do |line|
-      arr = line.split
-      if arr[1] == 'NONTERMINAL'
-        nonterminal_count[arr[2]] = arr[0]
-      elsif arr[1] == 'UNARYRULE'
-        unaryrule_count[[arr[2],arr[3]].freeze] = arr[0]
-      elsif arr[1] == 'BINARYRULE'
-        binaryrule_count[[arr[2],arr[3],arr[4]].freeze] = arr[0]
-      else 
-        raise 'unknown tag: ' + arr[1]
-      end
-    end
-    
-    p nonterminal_count
-    p unaryrule_count
-    p binaryrule_count
-    
+    estimator = MaxLikelihoodEstimator.new(options[:counts_file])
   end
+  
+  p estimator.estimate('VP','PP','NP')
+  p estimator.estimate('ADVP+ADV','blech')
+  p estimator.estimate('ADVP+ADV','gagagoogoo')
 
 end
 
