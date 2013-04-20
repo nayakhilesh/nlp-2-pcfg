@@ -62,10 +62,13 @@ end
 
 class MaxLikelihoodEstimator
 
+  attr_accessor :nonterminal_count, :binary_rules 
+  
   def initialize(counts_file)
     @nonterminal_count = {}
     @unaryrule_count = {}
     @binaryrule_count = {}
+    @binary_rules = {}
     File.open(counts_file, 'r').each_line do |line|
       arr = line.split
       if arr[1] == 'NONTERMINAL'
@@ -74,6 +77,11 @@ class MaxLikelihoodEstimator
         @unaryrule_count[[arr[2],arr[3]].freeze] = arr[0].to_i
       elsif arr[1] == 'BINARYRULE'
         @binaryrule_count[[arr[2],arr[3],arr[4]].freeze] = arr[0].to_i
+        if @binary_rules.has_key?(arr[2])
+          @binary_rules[arr[2].freeze] << [arr[3],arr[4]]
+        else
+          @binary_rules[arr[2].freeze] = [[arr[3],arr[4]]]
+        end
       else 
         raise 'unknown tag: ' + arr[1]
       end
@@ -81,21 +89,75 @@ class MaxLikelihoodEstimator
     
     #p @nonterminal_count
     #p @unaryrule_count
-    #p @binaryrule_count 
+    #p @binaryrule_count
+    #p @binary_rules
   end
   
   def estimate(x,y,z=nil)
     if z == nil
       if @unaryrule_count.has_key?([x,y])
         @unaryrule_count[[x,y]]/@nonterminal_count[x].to_f
-      else
+      elsif @unaryrule_count.has_key?([x,'_RARE_'])
         @unaryrule_count[[x,'_RARE_']]/@nonterminal_count[x].to_f
+      else 
+        nil
       end
-    else
+    elsif @binaryrule_count.has_key?([x,y,z])
       @binaryrule_count[[x,y,z]]/@nonterminal_count[x].to_f
+    else
+      nil
     end
   end
 
+end
+
+def cky_algorithm(sentence,estimator)
+
+  #p sentence
+  cap_n = estimator.nonterminal_count.keys
+  n = sentence.length
+  # initialization
+  pi = {}
+  (1..n).each do |i|
+    cap_n.each do |cap_x|
+      q = estimator.estimate(cap_x,sentence[i-1])
+      pi[[i,i,cap_x].freeze] = (q == nil) ? 0.0 : q
+    end
+  end
+  #p pi
+  
+  cap_r = estimator.binary_rules
+  # algorithm
+  (1..(n-1)).each do |l|
+    (1..(n-l)).each do |i|
+      j = i+l
+      cap_n.each do |cap_x|
+      
+        # calculating max here
+        if cap_r[cap_x] != nil
+          max = 0.0
+          cap_r[cap_x].each do |cap_yz|
+            cap_y = cap_yz[0]
+            cap_z = cap_yz[1]
+            (i..(j-1)).each do |s|
+              puts 'new'
+              p estimator.estimate(cap_x,cap_y,cap_z)
+              p pi[[i,s,cap_y]]
+              p pi[[s+1,j,cap_z]]
+              val = estimator.estimate(cap_x,cap_y,cap_z) * pi[[i,s,cap_y]] * pi[[s+1,j,cap_z]]
+              if val > max
+                pi[[i,j,cap_x]] = val
+                max = val
+              end
+            end
+          end
+        end
+        
+      end
+    end
+  end
+  p pi
+  
 end
 
 def main
@@ -140,6 +202,8 @@ def main
   p estimator.estimate('VP','PP','NP')
   p estimator.estimate('ADVP+ADV','blech')
   p estimator.estimate('ADVP+ADV','gagagoogoo')
+  
+  cky_algorithm(%w(hello there again),estimator)
 
 end
 
