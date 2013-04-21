@@ -5,18 +5,18 @@
 
 require 'json'
 require 'optparse'
+require 'logger'
+
+$logger = Logger.new(STDOUT)
+$logger.level = Logger::WARN
 
 def write_replaced_file(filename)
 
   freq_hash = get_freq_hash(filename)
-  #p freq_hash
-  
   infrequent_words = freq_hash.reject { |word, freq| freq >= 5 }
-  #p infrequent_words
   
   File.open(filename + '.replaced', 'w') do |file|
     File.open(filename, 'r').each_line do |line|
-      #puts line
       tree = JSON.parse(line)
       replaced_tree = create_replaced_tree(tree,infrequent_words)
       file.write(replaced_tree.to_json)
@@ -29,7 +29,6 @@ end
 def get_freq_hash(filename)
   freq_hash = {}
   File.open(filename, 'r').each_line do |line|
-    #puts line
     tree = JSON.parse(line)
     add_freq(tree,freq_hash)
   end
@@ -66,8 +65,8 @@ end
 
 class MaxLikelihoodEstimator
 
-  attr_accessor :nonterminal_count, :binary_rules, :unary_rules 
-                                                    # TODO remove
+  attr_accessor :binary_rules, :unary_rules 
+
   def initialize(counts_file,frequent_words)
     @nonterminal_count = {}
     @unaryrule_count = {}
@@ -97,11 +96,6 @@ class MaxLikelihoodEstimator
         raise 'unknown tag: ' + arr[1]
       end
     end
-    
-    #p @nonterminal_count
-    #p @unaryrule_count
-    #p @binaryrule_count
-    #p @binary_rules
   end
   
   def estimate(x,y,z=nil)
@@ -130,8 +124,6 @@ end
 
 def cky_algorithm(sentence,estimator)
 
-  #p sentence
-  #cap_n = estimator.nonterminal_count.keys
   n = sentence.length
   # initialization
   pi = {}
@@ -139,41 +131,35 @@ def cky_algorithm(sentence,estimator)
     estimator.unary_rules.keys.each do |cap_x|
       q = estimator.estimate(cap_x,sentence[i-1])
       if q != nil
-        puts sentence[i-1] + ' ' + cap_x + ' ' + q.to_s
+        $logger.debug(sentence[i-1] + ' ' + cap_x + ' ' + q.to_s)
         pi[[i,i,cap_x].freeze] = q
       end
     end
   end
-  #p pi
-  #exit
   
-  #cap_r = estimator.binary_rules
   bp = {}
   # algorithm
   (1..(n-1)).each do |l|
-    puts 'length=' + l.to_s
+    $logger.debug('length=' + l.to_s)
     (1..(n-l)).each do |i|
       j = i+l
-      puts 'from %d to %d' %[i,j]
+      $logger.debug('from %d to %d' %[i,j])
       pi_assignment = {}
       (i..(j-1)).each do |s|
-        puts 'for split (%d,%d),(%d,%d)' %[i,s,s+1,j]
+        $logger.debug('for split (%d,%d),(%d,%d)' %[i,s,s+1,j])
         found = false
         estimator.binary_rules.keys.each do |cap_x|
-      
-        # calculating max here
-        
+          
           estimator.binary_rules[cap_x].each do |cap_yz|
             cap_y = cap_yz[0]
-            cap_z = cap_yz[1]
-            
+            cap_z = cap_yz[1]    
               
             if pi.has_key?([i,s,cap_y]) and pi.has_key?([s+1,j,cap_z])
               val = estimator.estimate(cap_x,cap_y,cap_z) *
                     pi[[i,s,cap_y]] *
                     pi[[s+1,j,cap_z]]
-              puts 'prob=%.15f, q(%s,%s,%s)=%.15f, pi(%d,%d,%s)=%.15f, pi(%d,%d,%s)=%.15f' %[val,cap_x,cap_y,
-              cap_z,estimator.estimate(cap_x,cap_y,cap_z),i,s,cap_y,pi[[i,s,cap_y]],s+1,j,cap_z,pi[[s+1,j,cap_z]]]
+              $logger.debug('prob=%.15f, q(%s,%s,%s)=%.15f, pi(%d,%d,%s)=%.15f, pi(%d,%d,%s)=%.15f' %[val,cap_x,cap_y,
+              cap_z,estimator.estimate(cap_x,cap_y,cap_z),i,s,cap_y,pi[[i,s,cap_y]],s+1,j,cap_z,pi[[s+1,j,cap_z]]])
               if not pi.has_key?([i,j,cap_x])
                 found = true
                 pi[[i,j,cap_x].freeze] = val
@@ -189,17 +175,15 @@ def cky_algorithm(sentence,estimator)
         end
         
         if not found
-            puts 'No valid rules found'
+            $logger.debug('No valid rules found')
         end
         
       end
-      puts 'Pi assignment:'
-      p pi_assignment
+      $logger.debug('Pi assignment:')
+      $logger.debug(pi_assignment)
          
     end
   end
-  #p pi
-  #p bp
   
   p create_tree(1,n,'SBARQ',bp,sentence)
   
@@ -213,8 +197,7 @@ def create_tree(start,_end,tag,bp,sentence)
   y = arr[0]
   z = arr[1]
   s = arr[2]
-  tree = [tag,create_tree(start,s,y,bp,sentence),create_tree(s+1,_end,z,bp,sentence)]
-  return tree
+  return [tag,create_tree(start,s,y,bp,sentence),create_tree(s+1,_end,z,bp,sentence)]
 end
 
 def usage
@@ -248,6 +231,10 @@ def parse_options
       options[:input_file] = filename
     end
     
+    opts.on('-d', '--debug', 'Print debugging output') do
+      $logger.level = Logger::DEBUG
+    end
+    
     opts.on('-h', '--help', 'Display this screen') do
      puts opts
      exit
@@ -263,7 +250,6 @@ end
 def main
   
   options = parse_options
-  #p options
 
   if options[:write_replaced]
     if options[:training_file]
@@ -279,10 +265,6 @@ def main
       frequent_words = freq_hash.reject { |word, freq| freq < 5 }  
       
       estimator = MaxLikelihoodEstimator.new(options[:counts_file],frequent_words)
-    
-      #p estimator.estimate('VP','PP','NP')
-      #p estimator.estimate('ADVP+ADV','blech')
-      #p estimator.estimate('ADVP+ADV','gagagoogoo')
     
       # TODO - is freeze needed?
     
