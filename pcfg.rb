@@ -281,9 +281,7 @@ def main
       frequent_words = freq_hash.reject { |word, freq| freq < 5 }  
       
       estimator = MaxLikelihoodEstimator.new(options[:counts_file],frequent_words)
-    
-      # TODO - is freeze needed?
-      
+
       create_parse_file(options[:input_file],estimator)
 
     else

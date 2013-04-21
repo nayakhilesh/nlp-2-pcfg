@@ -13,3 +13,5 @@ parse_train.dat.replaced
 parse_train.counts.out
 parse_dev.out
 parse_dev.dat.out
+parse_test.p2.out
+parse_test.dat.out
