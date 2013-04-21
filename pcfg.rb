@@ -155,9 +155,10 @@ def cky_algorithm(sentence,estimator)
     (1..(n-l)).each do |i|
       j = i+l
       puts 'from %d to %d' %[i,j]
-      max = -1.0
+      pi_assignment = {}
       (i..(j-1)).each do |s|
         puts 'for split (%d,%d),(%d,%d)' %[i,s,s+1,j]
+        found = false
         estimator.binary_rules.keys.each do |cap_x|
       
         # calculating max here
@@ -173,20 +174,27 @@ def cky_algorithm(sentence,estimator)
                     pi[[s+1,j,cap_z]]
               puts 'prob=%.15f, q(%s,%s,%s)=%.15f, pi(%d,%d,%s)=%.15f, pi(%d,%d,%s)=%.15f' %[val,cap_x,cap_y,
               cap_z,estimator.estimate(cap_x,cap_y,cap_z),i,s,cap_y,pi[[i,s,cap_y]],s+1,j,cap_z,pi[[s+1,j,cap_z]]]
-              if val > max
+              if not pi.has_key?([i,j,cap_x])
+                found = true
                 pi[[i,j,cap_x].freeze] = val
+                pi_assignment[[i,j,cap_x].freeze] = val
                 bp[[i,j,cap_x].freeze] = [cap_y,cap_z,s]
-                max = val
+              elsif pi[[i,j,cap_x]] < val
+                  pi[[i,j,cap_x].freeze] = val
+                  pi_assignment[[i,j,cap_x].freeze] = val
+                  bp[[i,j,cap_x].freeze] = [cap_y,cap_z,s]
               end
             end
           end
         end
-
-        if max < -0.99 and max > -1.01
+        
+        if not found
             puts 'No valid rules found'
         end
-
+        
       end
+      puts 'Pi assignment:'
+      p pi_assignment
          
     end
   end
