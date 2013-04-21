@@ -11,3 +11,5 @@ parse_train.dat
 parse_train_vert.dat
 parse_train.dat.replaced
 parse_train.counts.out
+parse_dev.out
+parse_dev.dat.out

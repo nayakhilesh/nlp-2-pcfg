@@ -8,7 +8,7 @@ require 'optparse'
 require 'logger'
 
 $logger = Logger.new(STDOUT)
-$logger.level = Logger::WARN
+$logger.level = Logger::INFO
 
 def write_replaced_file(filename)
 
@@ -122,6 +122,22 @@ class MaxLikelihoodEstimator
 
 end
 
+def create_parse_file(filename,estimator)
+
+  line_count = %x{wc -l #{filename}}.split.first.to_i
+  line_num = 0
+  File.open(filename + '.out', 'w') do |file|
+    File.open(filename, 'r').each_line do |line|
+      line_num += 1
+      $logger.info('Processing sentence %d of %d' %[line_num,line_count])
+      parse_tree = cky_algorithm(line.split,estimator)
+      file.write(parse_tree.to_json)
+      file.write("\n")
+    end
+  end
+
+end
+
 def cky_algorithm(sentence,estimator)
 
   n = sentence.length
@@ -185,7 +201,7 @@ def cky_algorithm(sentence,estimator)
     end
   end
   
-  p create_tree(1,n,'SBARQ',bp,sentence)
+  create_tree(1,n,'SBARQ',bp,sentence)
   
 end
 
@@ -267,10 +283,9 @@ def main
       estimator = MaxLikelihoodEstimator.new(options[:counts_file],frequent_words)
     
       # TODO - is freeze needed?
-    
-      sentence = 'What are geckos ?'
-      cky_algorithm(sentence.split,estimator) 
-  
+      
+      create_parse_file(options[:input_file],estimator)
+
     else
       puts usage
       exit
