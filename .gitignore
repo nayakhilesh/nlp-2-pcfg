@@ -15,3 +15,10 @@ parse_dev.out
 parse_dev.dat.out
 parse_test.p2.out
 parse_test.dat.out
+parse_dev.dat.out.non_vert_mark
+parse_dev.dat.out.vert_mark
+parse_test.dat.out.non_vert_mark
+parse_test.dat.out.vert_mark
+parse_test.p3.out
+parse_train_vert.counts.out
+parse_train_vert.dat.replaced
